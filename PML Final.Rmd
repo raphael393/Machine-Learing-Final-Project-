@@ -1,0 +1,134 @@
+---
+title: "PML Project - Predicting How Well People Exercise"
+author: "Raphael Parrado"
+date: "May 18, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+library(readr)
+library(rpart)
+library(randomForest)
+library(ggplot2)
+library(rpart.plot)
+library(lattice)
+set.seed(4321)
+```
+
+
+#Background 
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data 
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+#Preliminary Considerations
+
+## Reproducibility 
+We used a seed generator, in this case 4321. Packages used were accessed and last versions are from 05/18/2019. 
+
+## Building the model 
+The outcome variable classe have 5 classes according to the activities performed:
+- exactly according to the specification (Class A)
+- throwing the elbows to the front (Class B)
+- lifting the dumbbell only halfway (Class C)
+- lowering the dumbbell only halfway (Class D)
+- throwing the hips to the front (Class E)
+Our variable A is an adequate use, the other variables are common mistakes. We used multiple models, but the two best models are exposed. 
+
+## Other Considerations
+Cross-validation was performed by dividing the test set into 25% testing data and 75% training data. Our expected out of sample error (1-accuracy) will be variable and depending on the best model, however we would want at least less than 10% of error. Cross-validation was selected due to a large data sample of over 19k observations. 
+
+#Results 
+
+##Preliminary Data Loading 
+All packages have been previously loaded including: ggplot2, caret, rplot, randomforest, lattice, rpart and readr. 
+
+## Loading Data sets and cleaning 
+
+```{r, warning=FALSE,message=FALSE,error=FALSE}
+## Loading Data sets 
+pml.training <- read_csv("pml-training.csv")
+pml.testing <- read_csv("pml-testing.csv")
+
+## Changing the classe column to factor 
+pml.training$classe <- as.factor(pml.training$classe)
+
+## Deleting columns with no variables
+pml.training<-pml.training[,colSums(is.na(pml.training)) == 0]
+pml.testing <-pml.testing[,colSums(is.na(pml.testing)) == 0]
+
+## Deleting columns that are not needed
+pml.training <-pml.training[,-c(1:7)]
+pml.testing <-pml.testing[,-c(1:7)]
+
+## So what do we have
+dim(pml.testing)
+dim(pml.training)
+names(pml.training)
+```
+
+## Developing partitions for the model 
+So both sets have 53 variables, training data set has 19622 observations wereas the testing set has 20 observations. For cross valiation (and as discussed previosuly) a partition was performed by 75% in the new training data set. 
+
+```{r}
+intrain <- createDataPartition(y=pml.training$classe, p=3/4, list=FALSE)
+training <- pml.training[intrain,]
+testing <- pml.training[-intrain,]
+dim(training)
+dim(testing)
+```
+
+## So what do we have?
+So as previusly discussed we have the variable classe with 5 levels. Let's look the frequeny distribution of it. 
+
+```{r}
+##What data do we have
+qplot(x=training$classe,main = "Variable Classe in the 
+      Training set", data=training,geom="bar",xlab="Levels",ylab="Frequency")
+
+
+```
+
+According to this graph. The most common is A with over 4000 occurences, meaning this is the right way. The most common mistake is D that corresponds to lowering the dumbell halfway. 
+
+## Our first model - A Decision tree
+```{r}
+modfit1 <- rpart(classe~.,data=training,method="class")
+prediction1<- predict(modfit1,testing,type="class")
+confusionMatrix(prediction1,testing$classe)
+```
+
+So we have an accuracy of around 75%. 
+
+## Second model - A random forest 
+```{r}
+modfit2 <- train(classe~.,data=training, method="rf",ntree=20)
+prediction2 <- predict(modfit2,testing)
+confusionMatrix(prediction2,testing$classe)
+```
+
+Here the accuracy is about 99%. 
+
+## Final thoughts and decision for modeling 
+After evaluating both models is evident that the Random Forest is the best model with a vast difference in accuracy. The speific accuracy is 0.989 ith an out of sample error of 0.011 which is more than ideal. 
+
+Based on this we then apply the model to our testing data that includes 20 cases.
+```{r}
+finalpredict <- predict(modfit2,pml.testing)
+finalpredict
+```
+
+#References
+[1] Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+[2] Krzysztof Gra??bczewski and Norbert Jankowski. Feature Selection with Decision Tree Criterion.
+
